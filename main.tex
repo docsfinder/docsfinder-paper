@@ -1,0 +1,170 @@
+\documentclass[runningheads,a4paper]{llncs}
+
+\usepackage{amssymb}
+\setcounter{tocdepth}{3}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\usepackage{url}
+\newcommand{\keywords}[1]{\par\addvspace\baselineskip
+\noindent\keywordname\enspace\ignorespaces#1}
+
+\begin{document}
+
+\mainmatter
+
+\title{Implementación de un Sistema\\de Recuperación de Información}
+
+\titlerunning{Implementación de un Sistema de Recuperación de Información}
+
+\author{Carlos Bermudez Porto y Leynier Gutiérrez González}
+
+\authorrunning{Implementación de un Sistema de Recuperación de Información}
+
+\institute{c.bermudez@estudiantes.matcom.uh.cu\\
+  l.gutierrez@estudiantes.matcom.uh.cu\\
+  \vspace{0.2cm}
+  Sistemas de Información, Ciencia de la Computación,\\
+  Facultad de Matemática y Computación, Universidad de La Habana}
+
+\toctitle{Implementación de un Sistema de Recuperación de Información}
+\tocauthor{Carlos Bermudez Porto y Leynier Gutiérrez González}
+\maketitle
+
+\hyphenation{con-si-de-ran}
+\hyphenation{do-cu-men-to}
+\hyphenation{do-cu-men-tos}
+
+\begin{abstract}
+  Implementación de un sistema de recuperación de información con retroalimentación basado en un modelo vectorial clásico. Se consideran las principales funcionalidades así como sus limitaciones y posibles mejoras. Se incluye una interfaz de línea de comandos, una aplicación web y una API. Se muestran los resultados de las pruebas de varias métricas sobre el modelo.
+  \keywords{recuperación de información, modelo vectorial, inteligencia, artificial}
+\end{abstract}
+
+\section{Diseño del Sistema}
+
+Para este proyecto se utilizó un modelo vectorial. En este, el peso $w_{i,j}$ asociado al par $(t_i,d_j)$ es positivo y no binario. A su vez, los términos indexados en la consulta están ponderados. Sea $w_{i,q}$ el peso asociado al par $(t_j,q)$, donde $w_{i,q} > 0$. Entonces, el vector consulta $\vec{q}$ se define como $\vec{q} = (w_{1,q}, w_{2,q}, ..., w_{n,q})$ donde $n$ es la cantidad total de términos indexados en el sistema. El vector de un documento $\vec{d_j}$ se representa por $\vec{d_j} = (w_{1,j}, w_{2,j}, ..., w_{n,j})$.
+
+$$ \vec{q} = (w_{1,q}, w_{2,q}, ..., w_{n,q}) $$ 
+$$ \vec{d_j} = (w_{1,j}, w_{2,j}, ..., w_{n,j}) $$
+
+El proceso se dividió principalmente en 4 etapas: Preprocesado o Tokenización, Entrenamiento o Vectorización, Consulta y  Retroalimentación.
+
+\subsection{Preprocesado o Tokenización}
+
+Esta etapa es la encargada de realizar un proceso de normalización del contenido de los documentos. El proceso de normalizar el contenido de un documento comienza llevando a minúsculas el contenido, luego se realiza una expansión de las contracciones más comunes (por ejemplo: \textit{can't} por \textit{can not}), después se eliminan los vocablos que contengan caracteres que no pertenezcan al abecedario del Inglés y otras cosas como URIs, posteriormente se eliminan los espacios extras y finalmente el resultado se somete a un proceso de tokenización y derivación (stemming).
+
+En el proceso de tokenización se eliminan las palabras conocidas como stopwords, además de las adposiciones (ADP), los verbos auxiliares (AUX), las conjunciones de coordinación (CONJ), los determinantes (DET), las partículas (PART), los pronombres (PRON) y las conjunciones subordinadas (SCONJ).
+
+\subsection{Entrenamiento o Vectorización}
+
+Esta etapa es la encargada de realizar un proceso de vectorización de los tokens de la etapa anterior. El objetivo es representar estos como vectores numéricos para luego realizar una ordenación de estos basada en una función de similitud determinada.
+
+Las dimensiones de los vectores resultantes serían iguales a la cantidad de tokens diferentes en la colección de documentos y cada documento tendría su vector asociado. Cada componente representa la relevancia de ese token o término en el documento, quedando formada una matriz donde las columnas son los términos o tokens y las filas los documentos y en la posición $i$, $j$ quedaría la relevancia del j-ésimo término en el i-ésimo documento.
+
+La relevancia se calcula utilizando la Tf-idf (del inglés Term frequency – Inverse document frequency), frecuencia de término – frecuencia inversa de documento (o sea, la frecuencia de ocurrencia del término en la colección de documentos), es una medida numérica que expresa cuán relevante es una palabra para un documento en una colección.
+
+Sea $freq_{i,j}$ la frecuencia del término $t_i$ en el documento $d_j$. Entonces la frecuencia normalizada $f_{i,j}$ del término $t_i$ en el documento $d_j$ esta dada por:
+
+$$ tf_{i,j} = \frac{freq_{i,j}}{max_l \cdot freq_{l,j}} $$
+
+donde el máximo (término $l$) se calcula sobre todos los términos del documento $d_j$. Si el término $t_i$ no aparece en el documento $d_j$ entonces $f_{i,j} = 0$.
+
+Sea $N$ la cantidad total de documentos en el sistema y $n_i$ la cantidad de
+documentos en los que aparece el término $t_ị$. La frecuencia de ocurrencia
+de un término $t_i$ dentro de todos los documentos de la colección $idf_i$ (del
+inglés inverse document frequency) está dada por:
+
+$$ idf_i = log\frac{N}{n_i} $$
+
+El peso del término $t_i$ en el documento $d_j$ está dado por:
+
+$$ w_{i,j} = tf_{i,j}\ \text{x}\ idf_i $$
+
+
+\subsection{Consulta}
+
+Esta etapa es la encargada de realizar un proceso de consulta. En ella se le realiza el preprocesado de la consulta para obtener primeramente los tokens y luego el vector asociado a la consulta. El proceso de obtener los tokens de la consulta es similar al de obtener los tokens de un documento pero el proceso de obtener el vector de la consulta tiene variación pues se utiliza un parámetro $\alpha$.
+
+\[
+
+w_{i,q} = 
+    \begin{cases}
+        0 & freq_{i,q} = 0 \\
+        \left( \alpha + (1 - \alpha) \frac{freq_{i,q}}{max_l freq_{l,q}} \right) log \frac{N}{n_i} & freq_{i,q} \neq 0
+    \end{cases}
+
+\]
+
+Donde $freq_{i,q}$ es la frecuencia del término $t_i$ en el texto de la consulta $q$. El término $\alpha$ es de suavizado y permite amortiguar la contribución de la frecuencia del término, toma un valor entre $O$ y $1$. Los valores más usados son $0.4$ y $0.5$.
+
+Luego con el vector de la consulta se realiza un ordenamiento de los documentos según el resultado de calcular una función de relevancia en entre el vector de la consulta y cada uno de los vectores de los documentos. La función de utilizada es coseno del ángulo comprendido entre los vectores de los documentos $\vec{d_j}$ y el vector de la consulta $\vec{q}$.
+
+$$ sim(d_j, q) = \frac{\vec{d_j} \cdot \vec{q}}{|\vec{d_j}| \cdot |\vec{q}| } $$
+$$ sim(d_j, q) = \frac{ \sum^{n}_{i=1}{w_{i,j}\ \text{x}\ w_{i,q}} }{ \sqrt{\sum^{n}_{i=1}{w_{i,j}^2}} \ \text{x}\ \sqrt{\sum^{n}_{i=1}{w_{i,q}^2}} } $$
+
+\subsection{Retroalimentación}
+
+Esta etapa es la encargada de realizar un proceso de retroalimentación utilizando el algoritmo de Rocchio que plante que en un Sistema de Recuperación Información real, se tiene una consulta y solo se conoce parcialmente el conjunto de los documentos relevantes y no relevantes:
+
+$$ \vec{q_m} = \alpha \vec{q_0} + \frac{\beta}{|D_r|} \sum_{\vec{d_j} \in D_r}{\vec{d_j}} - \frac{\gamma}{|D_{nr}|} \sum_{\vec{d_j} \in D_{nr}}{\vec{d_j}} $$
+
+$D_r$ y $D_{nr}$: conjuntos conocidos de documentos relevantes y no relevantes respectivamente.
+
+$\alpha$, $\beta$ y $\gamma$: pesos establecidos para cada término de la consulta.
+
+\section{Implementación del Sistema}
+
+La arquitectura del sistema esta formada por un cliente y un servidor web. En el servidor es donde esta implementado el modelo el cual mediante una API se comunica con el cliente. Además se implemento una interfaz de linea de comandos para realizar las pruebas y calcular las métricas del modelo.
+
+Para implementar el modelo se utilizó el lenguaje de programación Python en su versión 3.8. Además se utilizaron bibliotecas de terceros como \textit{pydantic} para la validación de los datos utilizando las anotaciones estándar de Python, \textit{numpy} para el manejo y operaciones de vectores y matrices de una maneja cómoda y eficiente, \textit{spacy} para la tokenización y \textit{nltk} para la derivación (stemming).
+
+La interfaz de linea de comandos se implementó igualmente con el lenguaje de programación Python utilizando la biblioteca de tercero llamada \textit{typer}.
+
+El servidor web conjuntamente con la API también se implementó con el lenguaje de programación Python utilizando la biblioteca o marco de trabajo llamado \textit{FastAPI}.
+
+El cliente se implementó utilizando el lenguaje de programación Dart y el marco de trabajo llamado Flutter. Y esta disponible tanto para web como para sistemas operativos como Android, iOS, Windows, Linux y MacOS.
+
+El servidor fue desplegado utilizando la plataforma \textit{heroku.com} y se encuentra disponible en la dirección \textit{docsfinder.herokuapp.com}.
+
+El cliente fue desplegado utilizando la plataforma de \textit{github.com} más especificamente las GitHub Pages y se encuentra disponible en la dirección \textit{docsfinder.github.io}.
+
+\section{Evaluación del Sistema}
+
+Para la evaluación del sistema se utilizaron dos colección de pruebas. La CISI y la CRAN. Ambas colecciones se encuentran en el proyecto.
+
+Las métricas utilizadas fueron la \textit{precisión}, el \textit{recobrado}, la \textit{medida F} (en particular la F1) y la métrica \textit{fallout}.\\
+
+\begin{tabular}{ |c||c|c|c|c|  }
+\hline
+Métrica & CISI TOP10 & CISI TOP20 & CRAN TOP10 & CRAN TOP20 \\
+\hline
+Precisión & 0.41 & 0.36 & 0.02 & 0.02 \\
+Recobrado & 0.06 & 0.09 & 0.01 & 0.02 \\
+F1 & 0.11 & 0.14 & 0.01 & 0.02 \\
+Fallout & 0.06 & 0.09 & 0.01 & 0.02 \\
+\hline
+\end{tabular}
+
+\section{Ventajas y Desventajas del Sistema}
+
+Una de las ventajas del sistema es su relativa sencillez permitiendo que sea de una fácil comprensión por la mayoría de las personas.
+
+Pero las principales desventajas recaen sobre las limitaciones del modelo vectorial, el cual asume como independientes las palabras del documento y que para lograr buenos resultados implica tener una gran capacidad de almacenamiento.
+
+\section{Recomendaciones para Trabajos Futuros}
+
+Algunas recomendaciones por parte de los autores para futuros trabajos son la evaluación de otros modelos como el modelo estadístico, la utilización de técnicas avanzadas de procesamiento del lenguaje natural, la utilización de base de conocimientos como ontologías o tesauros.
+
+\newpage
+
+\begin{thebibliography}{0}
+    \bibitem{confs} Conferencias de Sistemas de Información 2020-21. MatCom UH.
+    \bibitem{spacy}  \url{spacy.io}
+    \bibitem{server} \url{github.com/docsfinder/docsfinder}
+    \bibitem{client} \url{github.com/docsfinder/docsfinder.github.io}
+    \bibitem{rocchio} \url{en.wikipedia.org/wiki/Rocchio_algorithm}
+    \bibitem{cisi} \url{ir.dcs.gla.ac.uk/resources/test_collections/cisi}
+    \bibitem{cran} \url{ir.dcs.gla.ac.uk/resources/test_collections/cran}
+\end{thebibliography}
+
+\end{document}
